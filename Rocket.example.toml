@@ -1,0 +1,28 @@
+[release]
+address = "0.0.0.0"
+port = 7777
+
+[debug]
+address = "localhost"
+port = 7778
+
+[global]
+asset_path = "static"
+
+[global.databases.main_data]
+url = "file.db"
+pool_size = 20
+
+# idk how to generate these without go, so there's a handy cli in `contrib/keygen`
+[global.paseto]
+public = ""
+private = ""
+
+[global.oauth.gitlab]
+client_id = ""
+client_secret = ""
+redirect_uri = "http://localhost:7778/login/gitlab/callback"
+
+[global.oauth.gitlab.provider]
+auth_uri = "https://git.5ht2.me/oauth/authorize"
+token_uri = "https://git.5ht2.me/oauth/token"

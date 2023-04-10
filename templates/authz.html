@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="/static/gruvbox.css">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <title>Authorization for {{ client_id }}</title>
+  </head>
+  <body id="top">
+    <main>
+      <nav class="nav">
+        <a href="/">Hi</a>
+      </nav>
+      <h1>Authorization for {{ client_id }}</h1>
+      <p>{{ client_id }} asked for authentication as {{ me }}. If you do not know what this is, please close this tab.</p>
+      <form action="/api/auth/authorized" name="code" method="get">
+        <input type="hidden" name="code" value="{{ code }}">
+        <input type="submit" value="Authorize">
+      </form>
+      <br>
+      <br>
+      <a href="/">Go home</a>
+    </main>
+  </body>
+</html>

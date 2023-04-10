@@ -1,0 +1,11 @@
+/target
+keygen
+keygen.exe
+!keygen/
+*.db
+Rocket.toml
+
+elm-stuff/
+/static/elm.js
+
+.vscode/

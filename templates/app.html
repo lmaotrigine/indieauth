@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/gruvbox.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="manifest" href="/static/manifest.json">
+  </head>
+  <body id="top">
+    <main>
+      <div id="app">{{ message }}</div>
+      <script src="/static/elm.js"></script>
+      <script>
+        let cookieValue = null;
+        if (document.cookie != "" && document.cookie.includes("token=")) {
+          cookieValue = document.cookie.split('; ').find(row => row.startsWith('token=')).split('=')[1];
+        }
+        let app = Elm.Main.init({
+          node: document.getElementById('app'),
+          flags: cookieValue
+        });
+      </script>
+      <noscript>
+        You must enable JavaScript for this page to work.
+      </noscript>
+      <script src="/static/install-sw.js"></script>
+    </main>
+  </body>
+</html>
