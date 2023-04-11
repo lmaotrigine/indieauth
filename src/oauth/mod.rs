@@ -1,5 +1,6 @@
 use std::{fmt, marker::PhantomData, sync::Arc};
 
+use crate::api::{Error, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD, Engine};
 use rocket::{
     fairing::{AdHoc, Fairing},
@@ -10,8 +11,7 @@ use rocket::{
     Build, Ignite, Request, Rocket, Sentinel,
 };
 use serde::Deserialize;
-
-use crate::api::{Error, Result};
+use tokio::sync::RwLock;
 
 use self::config::OAuthConfig;
 
@@ -65,7 +65,7 @@ struct Shared<K> {
     _k: PhantomData<fn() -> TokenResponse<K>>,
 }
 
-pub struct OAuth2<K>(Arc<Shared<K>>);
+pub struct OAuth2<K>(Arc<RwLock<Shared<K>>>);
 
 #[rocket::async_trait]
 impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
@@ -74,7 +74,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         let oauth2 = request
             .rocket()
-            .state::<Arc<Shared<K>>>()
+            .state::<Arc<RwLock<Shared<K>>>>()
             .expect("OAuth2 fairing was not attached for this key type!");
         let query = match request.uri().query() {
             Some(q) => q,
@@ -121,9 +121,15 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
                 }
             }
         }
+        let mut oauth2 = oauth2.write().await;
         match oauth2
             .adapter
-            .exchange_code(&oauth2.config, TokenRequest::AuthorizationCode(params.code))
+            .clone()
+            .exchange_code(
+                &mut oauth2.config,
+                TokenRequest::AuthorizationCode(params.code),
+                &params.state,
+            )
             .await
         {
             Ok(mut token) => {
@@ -193,21 +199,23 @@ impl<K: 'static> OAuth2<K> {
         })
     }
 
-    pub fn get_redirect(&self, cookies: &CookieJar<'_>, scopes: &[&str]) -> Result<Redirect> {
-        self.get_redirect_extras(cookies, scopes, &[])
+    pub async fn get_redirect(&self, cookies: &CookieJar<'_>, scopes: &[&str]) -> Result<Redirect> {
+        self.get_redirect_extras(cookies, scopes, &[]).await
     }
 
-    fn get_redirect_extras(
+    async fn get_redirect_extras(
         &self,
         cookies: &CookieJar<'_>,
         scopes: &[&str],
         extras: &[(&str, &str)],
     ) -> Result<Redirect> {
         let state = generate_state(&mut rand::thread_rng())?;
-        let uri = self
-            .0
-            .adapter
-            .authorization_url(&self.0.config, &state, scopes, extras)?;
+        let mut oauth2 = self.0.write().await;
+        let uri =
+            oauth2
+                .adapter
+                .clone()
+                .authorization_url(&mut oauth2.config, &state, scopes, extras)?;
         cookies.add_private(
             Cookie::build("oauth2_state", state)
                 .same_site(SameSite::Lax)
@@ -216,12 +224,15 @@ impl<K: 'static> OAuth2<K> {
         Ok(Redirect::to(uri))
     }
 
-    pub async fn refresh(&self, refresh_token: &str) -> Result<TokenResponse<K>> {
-        self.0
+    pub async fn refresh(&self, refresh_token: &str, state: &str) -> Result<TokenResponse<K>> {
+        let mut oauth2 = self.0.write().await;
+        oauth2
             .adapter
+            .clone()
             .exchange_code(
-                &self.0.config,
+                &mut oauth2.config,
                 TokenRequest::RefreshToken(refresh_token.to_string()),
+                state,
             )
             .await
     }
@@ -235,7 +246,7 @@ impl<'r, K: 'static> FromRequest<'r> for OAuth2<K> {
         request::Outcome::Success(OAuth2(
             request
                 .rocket()
-                .state::<Arc<Shared<K>>>()
+                .state::<Arc<RwLock<Shared<K>>>>()
                 .expect("OAuth2 fairing was not attached for this key type!")
                 .clone(),
         ))
@@ -252,7 +263,7 @@ impl<C: fmt::Debug> fmt::Debug for OAuth2<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OAuth2")
             .field("adapter", &(..))
-            .field("config", &self.0.config)
+            .field("config", &self.0.blocking_read().config)
             .finish()
     }
 }

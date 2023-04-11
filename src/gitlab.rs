@@ -50,7 +50,7 @@ async fn user(token: String) -> Result<User> {
 #[get("/")]
 #[instrument(skip(oauth2, cookies))]
 pub async fn login(oauth2: OAuth2<GitLab>, cookies: &CookieJar<'_>) -> Redirect {
-    oauth2.get_redirect(cookies, &["read_user"]).unwrap()
+    oauth2.get_redirect(cookies, &["read_user"]).await.unwrap()
 }
 
 #[get("/callback")]

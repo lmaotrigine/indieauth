@@ -3,7 +3,7 @@ use rocket::http::{ext::IntoOwned, uri::Absolute};
 
 use crate::api::{Error, Result};
 
-use super::{config::OAuthConfig, TokenRequest, TokenResponse};
+use super::{config::OAuthConfig, pkce, TokenRequest, TokenResponse};
 
 #[derive(Clone, Debug)]
 pub struct Adapter {
@@ -21,7 +21,7 @@ impl Default for Adapter {
 impl Adapter {
     pub fn authorization_url(
         &self,
-        config: &OAuthConfig,
+        config: &mut OAuthConfig,
         state: &str,
         scopes: &[&str],
         extra_params: &[(&str, &str)],
@@ -32,6 +32,17 @@ impl Adapter {
             .append_pair("response_type", "code")
             .append_pair("client_id", config.client_id())
             .append_pair("state", state);
+        match config.client_secret() {
+            None | Some("") => {
+                let (verifier, challenge) = pkce::generate();
+                config.insert(state.to_string(), verifier);
+                url.query_pairs_mut()
+                    .append_pair("code_challenge", &challenge);
+                url.query_pairs_mut()
+                    .append_pair("code_challenge_method", "S256");
+            }
+            Some(_) => {}
+        }
         if let Some(redirect_uri) = config.redirect_uri() {
             url.query_pairs_mut()
                 .append_pair("redirect_uri", redirect_uri);
@@ -55,8 +66,9 @@ impl Adapter {
 
     pub async fn exchange_code<K>(
         &self,
-        config: &OAuthConfig,
+        config: &mut OAuthConfig,
         token: TokenRequest,
+        state: &str,
     ) -> Result<TokenResponse<K>> {
         let rb = self
             .client
@@ -82,7 +94,10 @@ impl Adapter {
                 }
             }
             ser.append_pair("client_id", config.client_id());
-            ser.append_pair("client_secret", config.client_secret());
+            match config.client_secret() {
+                Some(secret) => ser.append_pair("client_secret", secret),
+                None => ser.append_pair("code_verifier", &config.take(state)?),
+            };
             ser.finish()
         };
         let req = rb

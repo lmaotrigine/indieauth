@@ -17,7 +17,7 @@ pub struct Me {
     pub scope: Option<String>,
 }
 
-#[allow(clippy::too_many_arguments)]  // :/
+#[allow(clippy::too_many_arguments)] // :/
 #[rocket::get("/auth?<me>&<client_id>&<redirect_uri>&<state>&<response_type>&<code_challenge>&<code_challenge_method>")]
 #[tracing::instrument(skip(db), err)]
 pub async fn auth(
